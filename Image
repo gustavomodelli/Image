@@ -1,0 +1,215 @@
+library(imager)
+library(EBImage)
+library(recipes)
+library(tidyverse)
+library(magick)
+library(keras)
+
+##Intall EBImage
+source("https://bioconductor.org/biocLite.R")
+biocLite("EBImage")
+
+library(EBImage)
+
+file <- system.file('extdata/parrots.png',package='imager')
+im <- load.image(file)
+plot(im)
+
+gray <- grayscale(im)
+plot(gray)
+
+tb <- as.data.frame(im)
+str(tb)
+
+
+##Importa Imagens
+path_to_image <- list.files(path = getwd(),
+                            pattern = 'jpg', recursive = TRUE)
+
+##Gera uma lista de imagens classe cimg
+all_igs <- lapply(path_to_image, load.image)
+plot(all_igs[[1]])
+
+
+  
+##EBImagef
+## https://www.bioconductor.org/packages/release/bioc/vignettes/EBImage/inst/doc/EBImage-introduction.html
+
+f = system.file("images", "sample.png", package="EBImage")
+example <- readImage(f)
+plot(example)
+display(example, method = 'browser')
+display(example, method = 'raster')
+
+
+imgcol <- readImage(system.file("images", "sample-color.png", package="EBImage"))
+color <- readImage(file)
+display(color)
+
+example <- example %>%
+  resize(w = 28, h = 28) %>% 
+  channel('gray')
+
+plot(example)  
+show(example)
+
+
+img_com <- combine(
+  example,
+  example + 0.3,
+  example * 2,
+  example ^ 0.5
+)
+
+display(img_com, all=TRUE)
+
+array <- as.array(example)
+data.f <- as.data.frame(example)
+
+array2 <- as.array(color)
+data.f2 <- as.data.frame(color)
+hist(array2)
+
+
+###Example
+nuc = readImage(system.file('images', 'nuclei.tif', package='EBImage'))
+cel = readImage(system.file('images', 'cells.tif', package='EBImage'))
+
+display(nuc)
+display(cel)
+
+cells = rgbImage(green=1.5*cel, blue=nuc)
+display(cells, all = TRUE)
+
+
+##New Example
+setwd('C:/Users/gusta/Dropbox/Estatistica/r/Codes')
+recog <- readImage(c('Jellyfish.jpg','Desert.jpg','Hydrangeas.jpg'))
+
+str(recog)
+show(recog)
+display(recog)
+
+recog <- recog %>% 
+  resize(w = 64, h = 64) %>% 
+  channel('gray') %>%
+  as.array()
+
+show(recog)
+display(recog)
+dim(recog)
+
+##Coerce to data frame
+frame1 <- as.data.frame(recog[1:64, 1:64, 1])
+frame2 <- as.data.frame(recog[1:64, 1:64, 2])
+frame3 <- as.data.frame(recog[1:64, 1:64, 3])
+
+frame <- rbind(frame1, frame2, frame3) %>%
+  mutate(tipo = c(rep('Jellyfish',64), rep('Desert',64), rep('Hydrangeas',64)))
+
+
+rec <- recipe(tipo ~ . , data = frame) %>%
+  step_center(all_predictors()) %>% 
+  step_scale(all_predictors()) %>% 
+  step_pca(all_predictors()) %>% 
+  prep()
+
+recog <- bake(rec, frame)  
+str(recog)
+
+ggplot(recog, aes(PC1, PC2, color = tipo))+
+  geom_point()
+
+
+
+##app filter
+recog <- readImage(c('Jellyfish.jpg','Desert.jpg','Hydrangeas.jpg'))
+
+im <- recog %>%
+  resize(w = 250, h = 250) %>%
+  channel('gray') %>%
+  gblur(sigma = 4)
+
+display(im)
+
+##Morfological Thershold
+im <- recog %>%
+  resize(w = 250, h = 250) %>%
+  channel('gray')
+
+threshold <- otsu(im)
+im_th = combine( mapply(function(frame, th) frame > th, getFrames(im), threshold, SIMPLIFY=FALSE) )
+display(im_th, all=TRUE)
+
+
+##imagem binária
+imB <- recog %>%
+  resize(w = 250, h = 250) %>% 
+  channel('gray') %>% 
+  thresh(offset = 0.15)
+
+display(imB)
+
+##utilizando imagem tratada na predição
+im_tt <- as.array(im)
+im_tt <- as.array(im)
+
+frame1 <- as.data.frame(im_tt[1:250, 1:250, 1])
+frame2 <- as.data.frame(im_tt[1:250, 1:250, 2])
+frame3 <- as.data.frame(im_tt[1:250, 1:250, 3])
+
+
+frame <- rbind(frame1, frame2, frame3) %>%
+  mutate(tipo = c(rep('Jellyfish', 250), rep('Desert',250), rep('Hydrangeas', 250)))
+
+rec <- recipe(tipo ~ . , data = frame) %>%
+  step_center(all_predictors()) %>%
+  step_scale(all_predictors()) %>%
+  step_pca(all_predictors()) %>%
+  prep()
+
+frame_b <- bake(rec, frame)
+
+ggplot(frame_b, aes(PC1, PC2, color = tipo))+
+  geom_point()
+
+
+###EBImgae
+##Importa Imagens
+path_to_image <- list.files(path = getwd(),
+                            pattern = 'jpg', recursive = TRUE)
+
+all_igs <- lapply(path_to_image, readImage) 
+
+
+lista <- list()
+for (i in seq_along(path_to_image)){
+
+## Tratamento das imagens  
+  lista[[i]] <- channel(all_igs[[i]], 'gray')
+  lista[[i]] <- resize(lista[[i]], w = 128, h = 128)
+  lista[[i]] <- as.array(lista[[i]]) 
+  
+}
+
+##Binding
+img <- NULL
+for (i in seq_along(path_to_image)){
+  img <- rbind(img, lista[[i]])
+}
+
+
+images <- as.data.frame(img)
+images$tipo <- c('JellyFish','Desert','Hydrangeas')
+
+
+rec <- recipe(tipo ~ . , data = images) %>%
+  step_center(all_predictors()) %>%
+  step_scale(all_predictors()) %>%
+  step_pca(all_predictors()) %>% 
+  prep()
+
+frame_b <- bake(rec, images)
+
+ggplot(frame_b, aes(PC1, PC2, color = tipo))+
+  geom_point()
